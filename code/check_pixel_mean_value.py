@@ -36,7 +36,7 @@ if DATASET=='DRIVE':
         cum_num_pixels += np.cumprod(cur_img.shape)[1]
 
     mean_rgb_val = rgb_cum_sum/cum_num_pixels    
-    print mean_rgb_val
+    print(mean_rgb_val)
 
 elif DATASET=='STARE':
     
@@ -52,7 +52,7 @@ elif DATASET=='STARE':
         cum_num_pixels += np.cumprod(np.shape(cur_img))[1]
 
     mean_rgb_val = rgb_cum_sum/cum_num_pixels
-    print mean_rgb_val
+    print(mean_rgb_val)
     
 elif DATASET=='CHASE_DB1':
     
@@ -70,7 +70,7 @@ elif DATASET=='CHASE_DB1':
         cum_num_pixels += np.cumprod(np.shape(cur_img))[1]
 
     mean_rgb_val = rgb_cum_sum/cum_num_pixels
-    print mean_rgb_val
+    print (mean_rgb_val)
     
 elif DATASET=='HRF':
     
@@ -88,7 +88,7 @@ elif DATASET=='HRF':
         cum_num_pixels += np.cumprod(np.shape(cur_img))[1]
 
     mean_rgb_val = rgb_cum_sum/cum_num_pixels
-    print mean_rgb_val
+    print(mean_rgb_val)
     
 elif DATASET=='ALL':
     
@@ -117,4 +117,4 @@ elif DATASET=='ALL':
         cum_num_pixels += np.cumprod(np.shape(cur_img))[1]
 
     mean_rgb_val = rgb_cum_sum/cum_num_pixels    
-    print mean_rgb_val
+    print(mean_rgb_val)

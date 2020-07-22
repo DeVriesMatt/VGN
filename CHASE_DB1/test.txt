@@ -1,0 +1,8 @@
+../CHASE_DB1/Image_11L
+../CHASE_DB1/Image_11R
+../CHASE_DB1/Image_12L
+../CHASE_DB1/Image_12R
+../CHASE_DB1/Image_13L
+../CHASE_DB1/Image_13R
+../CHASE_DB1/Image_14L
+../CHASE_DB1/Image_14R

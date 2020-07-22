@@ -3,7 +3,7 @@
 
 
 import numpy as np
-import cPickle
+import pickle
 import pdb
 import tensorflow as tf
 
@@ -66,24 +66,26 @@ class base_model():
 
         if weight_file_path is not None:
             with open(weight_file_path) as f:
-                self.pretrained_weights = cPickle.load(f)       
+                self.pretrained_weights = pickle.load(f)
     
-    def new_conv_layer(self, bottom, filter_shape, stride=[1,1,1,1], init=tf.truncated_normal_initializer(0., 0.01), \
+    def new_conv_layer(self, bottom, filter_shape, stride=None, init=tf.compat.v1.truncated_normal_initializer(0., 0.01), \
                        norm_type=None, use_relu=False, is_training=True, name=None):
         
-        with tf.variable_scope(name) as scope:
-            w = tf.get_variable(
+        if stride is None:
+            stride = [1, 1, 1, 1]
+        with tf.compat.v1.variable_scope(name) as scope:
+            w = tf.compat.v1.get_variable(
                     "W",
                     shape=filter_shape,
                     initializer=init)
             out = tf.nn.conv2d(bottom, w, stride, padding='SAME')
             
             if norm_type=='BN':
-                out = tf.layers.batch_normalization(out, training=is_training, renorm=cfg.USE_BRN)
+                out = tf.compat.v1.layers.batch_normalization(out, training=is_training, renorm=cfg.USE_BRN)
             elif norm_type=='GN':
                 out = self.group_norm(out, num_group=min(cfg.GN_MIN_NUM_G, filter_shape[-1]/cfg.GN_MIN_CHS_PER_G))
             else:
-                b = tf.get_variable(
+                b = tf.compat.v1.get_variable(
                     "b",
                     shape=filter_shape[-1],
                     initializer=tf.constant_initializer(0.))
@@ -94,25 +96,25 @@ class base_model():
 
         return out
     
-    def new_fc_layer(self, bottom, input_size, output_size, init=tf.truncated_normal_initializer(0., 0.01), \
+    def new_fc_layer(self, bottom, input_size, output_size, init=tf.compat.v1.truncated_normal_initializer(0., 0.01), \
                      norm_type=None, use_relu=False, is_training=True, name=None):
         shape = bottom.get_shape().as_list()
         dim = np.prod(shape[1:])
         x = tf.reshape(bottom, [-1,dim])
 
-        with tf.variable_scope(name) as scope:
-            w = tf.get_variable(
+        with tf.compat.v1.variable_scope(name) as scope:
+            w = tf.compat.v1.get_variable(
                     "W",
                     shape=[input_size, output_size],
                     initializer=init)
             out = tf.matmul(x, w)
             
             if norm_type=='BN':
-                out = tf.layers.batch_normalization(out, training=is_training, renorm=cfg.USE_BRN)
+                out = tf.compat.v1.layers.batch_normalization(out, training=is_training, renorm=cfg.USE_BRN)
             elif norm_type=='GN':
                 out = self.group_norm(out, num_group=min(cfg.GN_MIN_NUM_G, output_size/cfg.GN_MIN_CHS_PER_G))
             else:
-                b = tf.get_variable(
+                b = tf.compat.v1.get_variable(
                     "b",
                     shape=[output_size],
                     initializer=tf.constant_initializer(0.))
@@ -126,25 +128,25 @@ class base_model():
     def new_deconv_layer(self, bottom, filter_shape, output_shape, strides, norm_type=None, use_relu=False, is_training=True, name=None):
         weights = get_deconv_filter(filter_shape)       
         
-        with tf.variable_scope(name) as scope:
-            w = tf.get_variable(
+        with tf.compat.v1.variable_scope(name) as scope:
+            w = tf.compat.v1.get_variable(
                     "W",
                     shape=weights.shape,
-                    initializer=tf.constant_initializer(value=weights,dtype=tf.float32))
+                    initializer=tf.compat.v1.constant_initializer(value=weights,dtype=tf.float32))
 
             out = tf.nn.conv2d_transpose(bottom, w, output_shape, strides, padding='SAME')
             
             if DEBUG:
-                out = tf.Print(out, [tf.shape(out)],
+                out = tf.compat.v1.Print(out, [tf.shape(out)],
                                message='Shape of %s' % name,
                                summarize=4, first_n=1)
                 
             if norm_type=='BN':
-                out = tf.layers.batch_normalization(out, training=is_training, renorm=cfg.USE_BRN)
+                out = tf.compat.v1.layers.batch_normalization(out, training=is_training, renorm=cfg.USE_BRN)
             elif norm_type=='GN':
                 out = self.group_norm(out, num_group=min(cfg.GN_MIN_NUM_G, filter_shape[-2]/cfg.GN_MIN_CHS_PER_G))
             else:
-                b = tf.get_variable(
+                b = tf.compat.v1.get_variable(
                     "b",
                     shape=weights.shape[-2],
                     initializer=tf.constant_initializer(0.))
@@ -167,11 +169,11 @@ class base_model():
         Return :
             ret : unpooled tensor
         """
-        with tf.variable_scope(name) as scope:
+        with tf.compat.v1.variable_scope(name) as scope:
             input_shape =  tf.shape(pool)
             output_shape = [input_shape[0], input_shape[1]*ksize[1], input_shape[2]*ksize[2], input_shape[3]]
     
-            flat_input_size = tf.cumprod(input_shape)[-1]
+            flat_input_size = tf.compat.v1.cumprod(input_shape)[-1]
             flat_output_shape = tf.stack([output_shape[0], output_shape[1]*output_shape[2]*output_shape[3]])
     
             pool_ = tf.reshape(pool, tf.stack([flat_input_size]))
@@ -200,8 +202,8 @@ class base_model():
         output = (output - mean) / tf.sqrt(var + epsilon)
         
         # gamma and beta
-        gamma = tf.get_variable('gamma', [1, 1, 1, num_ch], initializer=tf.constant_initializer(1.0))
-        beta = tf.get_variable('beta', [1, 1, 1, num_ch], initializer=tf.constant_initializer(0.0))
+        gamma = tf.compat.v1.get_variable('gamma', [1, 1, 1, num_ch], initializer=tf.constant_initializer(1.0))
+        beta = tf.compat.v1.get_variable('beta', [1, 1, 1, num_ch], initializer=tf.constant_initializer(0.0))
     
         output = tf.reshape(output, tf.shape(input)) * gamma + beta
         
@@ -220,8 +222,8 @@ class base_model():
         output = (output - mean) / tf.sqrt(var + epsilon)
         
         # gamma and beta
-        gamma = tf.get_variable('gamma', [1, num_ch], initializer=tf.constant_initializer(1.0))
-        beta = tf.get_variable('beta', [1, num_ch], initializer=tf.constant_initializer(0.0))
+        gamma = tf.compat.v1.get_variable('gamma', [1, num_ch], initializer=tf.constant_initializer(1.0))
+        beta = tf.compat.v1.get_variable('beta', [1, num_ch], initializer=tf.constant_initializer(0.0))
     
         output = tf.reshape(output, tf.shape(input)) * gamma + beta
         
@@ -230,7 +232,7 @@ class base_model():
     def group_norm_layer(self, input, num_group=32, epsilon=1e-05, name=None):
         # We here assume the channel-last ordering (NHWC)
         
-        with tf.variable_scope(name) as scope:
+        with tf.compat.v1.variable_scope(name) as scope:
         
             num_ch = input.get_shape().as_list()[-1]
             num_group = min(num_group, num_ch)
@@ -271,11 +273,11 @@ class vessel_segm_cnn(base_model):
         
     def build_driu(self):
 
-        imgs = tf.placeholder(tf.float32, [None, None, None, 3], name='imgs')
-        labels = tf.placeholder(tf.int64, [None, None, None, 1], name='labels')
-        fov_masks = tf.placeholder(tf.int64, [None, None, None, 1], name='fov_masks')
+        imgs = tf.compat.v1.placeholder(tf.float32, [None, None, None, 3], name='imgs')
+        labels = tf.compat.v1.placeholder(tf.int64, [None, None, None, 1], name='labels')
+        fov_masks = tf.compat.v1.placeholder(tf.int64, [None, None, None, 1], name='fov_masks')
 
-        is_training = tf.placeholder(tf.bool, [])
+        is_training = tf.compat.v1.placeholder(tf.bool, [])
 
         conv1_1 = self.new_conv_layer(imgs, [3,3,3,64], use_relu=True, name='conv1_1')
         _activation_summary('conv1_1', conv1_1)
@@ -330,13 +332,13 @@ class vessel_segm_cnn(base_model):
         fg_prob = tf.sigmoid(output)
 
         ### Compute the loss ###
-        binary_mask_fg = tf.to_float(tf.equal(labels, 1))
-        binary_mask_bg = tf.to_float(tf.not_equal(labels, 1))
+        binary_mask_fg = tf.compat.v1.to_float(tf.equal(labels, 1))
+        binary_mask_bg = tf.compat.v1.to_float(tf.not_equal(labels, 1))
         combined_mask = tf.concat(values=[binary_mask_bg,binary_mask_fg], axis=3)
         flat_one_hot_labels = tf.reshape(tensor=combined_mask, shape=(-1, 2))
         flat_labels = tf.reshape(tensor=labels, shape=(-1,))
         flat_logits = tf.reshape(tensor=output, shape=(-1,))        
-        cross_entropies = tf.nn.sigmoid_cross_entropy_with_logits(logits=flat_logits, labels=tf.to_float(flat_labels))
+        cross_entropies = tf.nn.sigmoid_cross_entropy_with_logits(logits=flat_logits, labels=tf.compat.v1.to_float(flat_labels))
         
         """# weighted cross entropy loss (in/out fov)
         num_pixel = tf.size(labels)
@@ -350,7 +352,7 @@ class vessel_segm_cnn(base_model):
 
         # weighted cross entropy loss (in fov)
         num_pixel = tf.reduce_sum(fov_masks)
-        num_pixel_fg = tf.count_nonzero(binary_mask_fg, dtype=tf.int64)
+        num_pixel_fg = tf.compat.v1.count_nonzero(binary_mask_fg, dtype=tf.int64)
         num_pixel_bg = num_pixel - num_pixel_fg
         class_weight = tf.cast(tf.concat(values=[tf.reshape(tf.divide(num_pixel_fg,num_pixel),(1,1)), \
                                                 tf.reshape(tf.divide(num_pixel_bg,num_pixel),(1,1))], axis=1), dtype=tf.float32)
@@ -360,28 +362,28 @@ class vessel_segm_cnn(base_model):
         reshaped_fov_masks /= tf.reduce_mean(reshaped_fov_masks)
         loss = tf.reduce_mean(tf.multiply(tf.multiply(reshaped_fov_masks, weight_per_label), cross_entropies))
          
-        weights_only = filter( lambda x: x.name.endswith('W:0'), tf.trainable_variables() )
+        weights_only = filter( lambda x: x.name.endswith('W:0'), tf.compat.v1.trainable_variables() )
         weight_decay = tf.reduce_sum(tf.stack([tf.nn.l2_loss(x) for x in weights_only])) * cfg.TRAIN.WEIGHT_DECAY_RATE
         loss += weight_decay
         
         ### Compute the accuracy ###
         flat_bin_output = tf.greater_equal(tf.reshape(tensor=fg_prob, shape=(-1,)), 0.5)
         # accuracy
-        correct = tf.to_float(tf.equal(flat_bin_output,tf.cast(flat_labels, tf.bool)))
+        correct = tf.compat.v1.to_float(tf.equal(flat_bin_output,tf.cast(flat_labels, tf.bool)))
         accuracy = tf.reduce_mean(correct)
         # precision, recall
-        num_fg_output = tf.reduce_sum(tf.to_float(flat_bin_output))
-        tp = tf.reduce_sum(tf.to_float(tf.logical_and(tf.cast(flat_labels, dtype=tf.bool), flat_bin_output)))
+        num_fg_output = tf.reduce_sum(tf.compat.v1.to_float(flat_bin_output))
+        tp = tf.reduce_sum(tf.compat.v1.to_float(tf.logical_and(tf.cast(flat_labels, dtype=tf.bool), flat_bin_output)))
         pre = tf.divide(tp,tf.add(num_fg_output,cfg.EPSILON))
-        rec = tf.divide(tp,tf.to_float(num_pixel_fg))
+        rec = tf.divide(tp,tf.compat.v1.to_float(num_pixel_fg))
         
         ### Build the solver ###
         if self.params.opt=='adam':
-            train_op = tf.train.AdamOptimizer(self.params.lr, epsilon=0.1).minimize(loss, global_step=self.global_step)
+            train_op = tf.compat.v1.train.AdamOptimizer(self.params.lr, epsilon=0.1).minimize(loss, global_step=self.global_step)
         elif self.params.opt=='sgd':
             if self.params.lr_decay=='const':
                 # constant
-                optimizer = tf.train.MomentumOptimizer(self.params.lr, cfg.TRAIN.MOMENTUM, use_nesterov=True)
+                optimizer = tf.compat.v1.train.MomentumOptimizer(self.params.lr, cfg.TRAIN.MOMENTUM, use_nesterov=True)
                 grads_and_vars = optimizer.compute_gradients(loss)
                 grads_and_vars = map(lambda gv: (0.01*gv[0],gv[1]) if 'output' in gv[1].name else (gv[0],gv[1]), grads_and_vars)
                 grads_and_vars = map(lambda gv: (None,gv[1]) if 'resized' in gv[1].name else (tf.clip_by_value(gv[0], -5., 5.),gv[1]), grads_and_vars)
@@ -392,9 +394,9 @@ class vessel_segm_cnn(base_model):
                 # piecewise_constant
                 boundaries = [int(self.params.max_iters*0.5),int(self.params.max_iters*0.75)]
                 values = [self.params.lr,self.params.lr*0.5,self.params.lr*0.25]
-                learning_rate = tf.train.piecewise_constant(self.global_step, boundaries, values)
+                learning_rate = tf.compat.v1.train.piecewise_constant(self.global_step, boundaries, values)
                 #train_op = tf.train.MomentumOptimizer(learning_rate, cfg.TRAIN.MOMENTUM, use_nesterov=True).minimize(loss, global_step=self.global_step)
-                optimizer = tf.train.MomentumOptimizer(learning_rate, cfg.TRAIN.MOMENTUM, use_nesterov=True)
+                optimizer = tf.compat.v1.train.MomentumOptimizer(learning_rate, cfg.TRAIN.MOMENTUM, use_nesterov=True)
                 grads_and_vars = optimizer.compute_gradients(loss)
                 grads_and_vars = map(lambda gv: (0.01*gv[0],gv[1]) if 'output' in gv[1].name else (gv[0],gv[1]), grads_and_vars)
                 grads_and_vars = map(lambda gv: (None,gv[1]) if 'resized' in gv[1].name else (tf.clip_by_value(gv[0], -5., 5.),gv[1]), grads_and_vars)
@@ -403,9 +405,9 @@ class vessel_segm_cnn(base_model):
                 train_op = optimizer.apply_gradients(grads_and_vars, global_step=self.global_step)
             elif self.params.lr_decay=='exp':
                 # exponential_decay
-                learning_rate = tf.train.exponential_decay(self.params.lr, self.global_step, self.params.max_iters/20, 0.9, staircase=False)
+                learning_rate = tf.compat.v1.train.exponential_decay(self.params.lr, self.global_step, self.params.max_iters/20, 0.9, staircase=False)
                 #train_op = tf.train.MomentumOptimizer(learning_rate, cfg.TRAIN.MOMENTUM, use_nesterov=True).minimize(loss, global_step=self.global_step)   
-                optimizer = tf.train.MomentumOptimizer(learning_rate, cfg.TRAIN.MOMENTUM, use_nesterov=True)
+                optimizer = tf.compat.v1.train.MomentumOptimizer(learning_rate, cfg.TRAIN.MOMENTUM, use_nesterov=True)
                 grads_and_vars = optimizer.compute_gradients(loss)
                 grads_and_vars = [(tf.clip_by_value(gv[0], -5., 5.), gv[1]) for gv in grads_and_vars]
                 train_op = optimizer.apply_gradients(grads_and_vars, global_step=self.global_step)
@@ -435,9 +437,9 @@ class vessel_segm_cnn(base_model):
         
     def build_driu_large(self):
 
-        imgs = tf.placeholder(tf.float32, [None, None, None, 3], name='imgs')
-        labels = tf.placeholder(tf.int64, [None, None, None, 1], name='labels')
-        is_training = tf.placeholder(tf.bool, [])
+        imgs = tf.compat.v1.placeholder(tf.float32, [None, None, None, 3], name='imgs')
+        labels = tf.compat.v1.placeholder(tf.int64, [None, None, None, 1], name='labels')
+        is_training = tf.compat.v1.placeholder(tf.bool, [])
 
         conv1_1 = self.new_conv_layer(imgs, [3,3,3,64], use_relu=True, name='conv1_1')
         _activation_summary('conv1_1', conv1_1)
@@ -502,8 +504,8 @@ class vessel_segm_cnn(base_model):
         fg_prob = tf.sigmoid(output)
 
         ### Compute the loss ###
-        binary_mask_fg = tf.to_float(tf.equal(labels, 1))
-        binary_mask_bg = tf.to_float(tf.not_equal(labels, 1))
+        binary_mask_fg = tf.compat.v1.to_float(tf.equal(labels, 1))
+        binary_mask_bg = tf.compat.v1.to_float(tf.not_equal(labels, 1))
         combined_mask = tf.concat(values=[binary_mask_bg,binary_mask_fg], axis=3)
         flat_one_hot_labels = tf.reshape(tensor=combined_mask, shape=(-1, 2))
         flat_labels = tf.reshape(tensor=labels, shape=(-1,))
@@ -514,7 +516,7 @@ class vessel_segm_cnn(base_model):
         loss = tf.reduce_mean(cross_entropies)"""
         # weighted cross entropy loss
         num_pixel = tf.size(labels)
-        num_pixel_fg = tf.count_nonzero(binary_mask_fg, dtype=tf.int32)
+        num_pixel_fg = tf.compat.v1.count_nonzero(binary_mask_fg, dtype=tf.int32)
         num_pixel_bg = num_pixel - num_pixel_fg
         class_weight = tf.cast(tf.concat(values=[tf.reshape(tf.divide(num_pixel_fg,num_pixel),(1,1)), \
                                                 tf.reshape(tf.divide(num_pixel_bg,num_pixel),(1,1))], axis=1), dtype=tf.float32)
@@ -522,28 +524,28 @@ class vessel_segm_cnn(base_model):
         # this is the weight for each datapoint, depending on its label
         loss = tf.reduce_mean(tf.multiply(weight_per_label,cross_entropies))
          
-        weights_only = filter( lambda x: x.name.endswith('W:0'), tf.trainable_variables() )
+        weights_only = filter( lambda x: x.name.endswith('W:0'), tf.compat.v1.trainable_variables() )
         weight_decay = tf.reduce_sum(tf.stack([tf.nn.l2_loss(x) for x in weights_only])) * cfg.TRAIN.WEIGHT_DECAY_RATE
         loss += weight_decay
         
         ### Compute the accuracy ###
         flat_bin_output = tf.greater_equal(tf.reshape(tensor=fg_prob, shape=(-1,)), 0.5)
         # accuracy
-        correct = tf.to_float(tf.equal(flat_bin_output,tf.cast(flat_labels, tf.bool)))
+        correct = tf.compat.v1.to_float(tf.equal(flat_bin_output,tf.cast(flat_labels, tf.bool)))
         accuracy = tf.reduce_mean(correct)
         # precision, recall
-        num_fg_output = tf.reduce_sum(tf.to_float(flat_bin_output))
-        tp = tf.reduce_sum(tf.to_float(tf.logical_and(tf.cast(flat_labels, dtype=tf.bool), flat_bin_output)))
+        num_fg_output = tf.reduce_sum(tf.compat.v1.to_float(flat_bin_output))
+        tp = tf.reduce_sum(tf.compat.v1.to_float(tf.logical_and(tf.cast(flat_labels, dtype=tf.bool), flat_bin_output)))
         pre = tf.divide(tp,tf.add(num_fg_output,cfg.EPSILON))
-        rec = tf.divide(tp,tf.to_float(num_pixel_fg))
+        rec = tf.divide(tp,tf.compat.v1.to_float(num_pixel_fg))
         
         ### Build the solver ###
         if self.params.opt=='adam':
-            train_op = tf.train.AdamOptimizer(self.params.lr, epsilon=0.1).minimize(loss, global_step=self.global_step)
+            train_op = tf.compat.v1.train.AdamOptimizer(self.params.lr, epsilon=0.1).minimize(loss, global_step=self.global_step)
         elif self.params.opt=='sgd':
             if self.params.lr_decay=='const':
                 # constant
-                optimizer = tf.train.MomentumOptimizer(self.params.lr, cfg.TRAIN.MOMENTUM, use_nesterov=True)
+                optimizer = tf.compat.v1.train.MomentumOptimizer(self.params.lr, cfg.TRAIN.MOMENTUM, use_nesterov=True)
                 grads_and_vars = optimizer.compute_gradients(loss)
                 grads_and_vars = map(lambda gv: (0.01*gv[0],gv[1]) if 'output' in gv[1].name else (gv[0],gv[1]), grads_and_vars)
                 grads_and_vars = map(lambda gv: (None,gv[1]) if 'resized' in gv[1].name else (tf.clip_by_value(gv[0], -5., 5.),gv[1]), grads_and_vars)
@@ -555,9 +557,9 @@ class vessel_segm_cnn(base_model):
                 boundaries = [int(self.params.max_iters*0.5),int(self.params.max_iters*0.75)]
                 values = [self.params.lr,self.params.lr*0.5,self.params.lr*0.25]
 
-                learning_rate = tf.train.piecewise_constant(self.global_step, boundaries, values)
+                learning_rate = tf.compat.v1.train.piecewise_constant(self.global_step, boundaries, values)
                 #train_op = tf.train.MomentumOptimizer(learning_rate, cfg.TRAIN.MOMENTUM, use_nesterov=True).minimize(loss, global_step=self.global_step)
-                optimizer = tf.train.MomentumOptimizer(learning_rate, cfg.TRAIN.MOMENTUM, use_nesterov=True)
+                optimizer = tf.compat.v1.train.MomentumOptimizer(learning_rate, cfg.TRAIN.MOMENTUM, use_nesterov=True)
                 grads_and_vars = optimizer.compute_gradients(loss)
                 grads_and_vars = map(lambda gv: (0.01*gv[0],gv[1]) if 'output' in gv[1].name else (gv[0],gv[1]), grads_and_vars)
                 grads_and_vars = map(lambda gv: (None,gv[1]) if 'resized' in gv[1].name else (tf.clip_by_value(gv[0], -5., 5.),gv[1]), grads_and_vars)
@@ -566,9 +568,9 @@ class vessel_segm_cnn(base_model):
                 train_op = optimizer.apply_gradients(grads_and_vars, global_step=self.global_step)
             elif self.params.lr_decay=='exp':
                 # exponential_decay
-                learning_rate = tf.train.exponential_decay(self.params.lr, self.global_step, self.params.max_iters/20, 0.9, staircase=False)
+                learning_rate = tf.compat.v1.train.exponential_decay(self.params.lr, self.global_step, self.params.max_iters/20, 0.9, staircase=False)
                 #train_op = tf.train.MomentumOptimizer(learning_rate, cfg.TRAIN.MOMENTUM, use_nesterov=True).minimize(loss, global_step=self.global_step)   
-                optimizer = tf.train.MomentumOptimizer(learning_rate, cfg.TRAIN.MOMENTUM, use_nesterov=True)
+                optimizer = tf.compat.v1.train.MomentumOptimizer(learning_rate, cfg.TRAIN.MOMENTUM, use_nesterov=True)
                 grads_and_vars = optimizer.compute_gradients(loss)
                 grads_and_vars = [(tf.clip_by_value(gv[0], -5., 5.), gv[1]) for gv in grads_and_vars]
                 train_op = optimizer.apply_gradients(grads_and_vars, global_step=self.global_step)
@@ -619,15 +621,15 @@ class vessel_segm_vgn(base_model):
     # special layer for graph attention network
     def sp_attn_head(self, bottom, output_size, adj, name, act=tf.nn.elu, feat_dropout=0., att_dropout=0., residual=False, show_adj=False):
        
-        with tf.variable_scope(name) as scope:
+        with tf.compat.v1.variable_scope(name) as scope:
             if feat_dropout != 0.0:
                 bottom = tf.nn.dropout(bottom, 1.0 - feat_dropout)
     
-            fts = tf.layers.conv1d(bottom, output_size, 1, use_bias=False)
+            fts = tf.compat.v1.layers.conv1d(bottom, output_size, 1, use_bias=False)
     
             # simplest self-attention possible
-            f_1 = tf.layers.conv1d(fts, 1, 1)
-            f_2 = tf.layers.conv1d(fts, 1, 1)
+            f_1 = tf.compat.v1.layers.conv1d(fts, 1, 1)
+            f_2 = tf.compat.v1.layers.conv1d(fts, 1, 1)
             
             num_nodes = tf.slice(tf.shape(adj),[0],[1])
             f_1 = tf.reshape(f_1, tf.concat(values=[num_nodes,tf.constant(1,shape=[1,])], axis=0))
@@ -636,11 +638,11 @@ class vessel_segm_vgn(base_model):
             f_1 = adj * f_1
             f_2 = adj * tf.transpose(f_2, [1,0])
     
-            logits = tf.sparse_add(f_1, f_2)
+            logits = tf.compat.v1.sparse_add(f_1, f_2)
             lrelu = tf.SparseTensor(indices=logits.indices, 
                     values=tf.nn.leaky_relu(logits.values), 
                     dense_shape=logits.dense_shape)
-            coefs = tf.sparse_softmax(lrelu)
+            coefs = tf.compat.v1.sparse_softmax(lrelu)
     
             if att_dropout != 0.0:
                 coefs = tf.SparseTensor(indices=coefs.indices,
@@ -649,17 +651,17 @@ class vessel_segm_vgn(base_model):
             if feat_dropout != 0.0:
                 fts = tf.nn.dropout(fts, 1.0 - feat_dropout)
     
-            coefs = tf.sparse_reshape(coefs, tf.concat(values=[num_nodes,num_nodes], axis=0))
+            coefs = tf.compat.v1.sparse_reshape(coefs, tf.concat(values=[num_nodes,num_nodes], axis=0))
             fts = tf.squeeze(fts, [0])
-            vals = tf.sparse_tensor_dense_matmul(coefs, fts)
+            vals = tf.compat.v1.sparse_tensor_dense_matmul(coefs, fts)
             vals = tf.expand_dims(vals, axis=0)
             vals = tf.reshape(vals, tf.concat(values=[tf.constant(1,shape=[1,]),num_nodes,tf.constant(output_size,shape=[1,])], axis=0))
-            ret = tf.contrib.layers.bias_add(vals)
+            ret = tf.compat.v1.contrib.layers.bias_add(vals)
     
             # residual connection
             if residual:
                 if bottom.shape[-1] != ret.shape[-1]:
-                    ret = ret + tf.layers.conv1d(bottom, ret.shape[-1], 1) # activation
+                    ret = ret + tf.compat.v1.layers.conv1d(bottom, ret.shape[-1], 1) # activation
                 else:
                     ret = ret + bottom
     
@@ -691,9 +693,9 @@ class vessel_segm_vgn(base_model):
         
     def build_driu(self):
 
-        imgs = tf.placeholder(tf.float32, [None, None, None, 3], name='imgs') # note that the input is RGB
-        labels = tf.placeholder(tf.int64, [None, None, None, 1], name='labels')
-        fov_masks = tf.placeholder(tf.int64, [None, None, None, 1], name='fov_masks')
+        imgs = tf.compat.v1.placeholder(tf.float32, [None, None, None, 3], name='imgs') # note that the input is RGB
+        labels = tf.compat.v1.placeholder(tf.int64, [None, None, None, 1], name='labels')
+        fov_masks = tf.compat.v1.placeholder(tf.int64, [None, None, None, 1], name='fov_masks')
 
         conv1_1 = self.new_conv_layer(imgs, [3,3,3,64], use_relu=True, name='conv1_1')
         _activation_summary('conv1_1', conv1_1)
@@ -776,9 +778,9 @@ class vessel_segm_vgn(base_model):
         
     def build_driu_large(self):
 
-        imgs = tf.placeholder(tf.float32, [None, None, None, 3], name='imgs') # note that the input is RGB
-        labels = tf.placeholder(tf.int64, [None, None, None, 1], name='labels')
-        fov_masks = tf.placeholder(tf.int64, [None, None, None, 1], name='fov_masks')
+        imgs = tf.compat.v1.placeholder(tf.float32, [None, None, None, 3], name='imgs') # note that the input is RGB
+        labels = tf.compat.v1.placeholder(tf.int64, [None, None, None, 1], name='labels')
+        fov_masks = tf.compat.v1.placeholder(tf.int64, [None, None, None, 1], name='fov_masks')
 
         conv1_1 = self.new_conv_layer(imgs, [3,3,3,64], use_relu=True, name='conv1_1')
         _activation_summary('conv1_1', conv1_1)
@@ -878,15 +880,15 @@ class vessel_segm_vgn(base_model):
         """Build the GAT."""
         print("Building the GAT part...")
         
-        node_byxs = tf.placeholder(tf.int32, [None, 3], name='node_byxs')
-        adj = tf.sparse_placeholder(tf.float32, [None, None], name='adj')
+        node_byxs = tf.compat.v1.placeholder(tf.int32, [None, 3], name='node_byxs')
+        adj = tf.compat.v1.sparse_placeholder(tf.float32, [None, None], name='adj')
         node_feats = tf.gather_nd(self.conv_feats, node_byxs, name='node_feats')
         node_labels = tf.cast(tf.reshape(tf.gather_nd(self.labels, node_byxs), [-1]), tf.float32, name='node_labels')
         
         node_feats_resh = tf.expand_dims(node_feats, axis=0)
 
-        gnn_feat_dropout = tf.placeholder_with_default(0., shape=())
-        gnn_att_dropout = tf.placeholder_with_default(0., shape=())
+        gnn_feat_dropout = tf.compat.v1.placeholder_with_default(0., shape=())
+        gnn_att_dropout = tf.compat.v1.placeholder_with_default(0., shape=())
         
         layer_name_list = []
         attns = []
@@ -943,14 +945,14 @@ class vessel_segm_vgn(base_model):
         # please note that all layers/variables related to the inference module
         # are prefixed with 'post_cnn' instead of 'infer_module'
 
-        post_cnn_dropout = tf.placeholder_with_default(0., shape=())
+        post_cnn_dropout = tf.compat.v1.placeholder_with_default(0., shape=())
         
-        is_lr_flipped = tf.placeholder(tf.bool, [])
-        is_ud_flipped = tf.placeholder(tf.bool, [])
-        rot90_num = tf.placeholder_with_default(0., shape=())
+        is_lr_flipped = tf.compat.v1.placeholder(tf.bool, [])
+        is_ud_flipped = tf.compat.v1.placeholder(tf.bool, [])
+        rot90_num = tf.compat.v1.placeholder_with_default(0., shape=())
         
-        y_len = tf.cast(tf.ceil(tf.divide(tf.to_float(tf.slice(tf.shape(self.imgs),[1],[1])),self.win_size)), dtype=tf.int32)
-        x_len = tf.cast(tf.ceil(tf.divide(tf.to_float(tf.slice(tf.shape(self.imgs),[2],[1])),self.win_size)), dtype=tf.int32)
+        y_len = tf.cast(tf.compat.v1.ceil(tf.divide(tf.compat.v1.to_float(tf.slice(tf.shape(self.imgs),[1],[1])),self.win_size)), dtype=tf.int32)
+        x_len = tf.cast(tf.compat.v1.ceil(tf.divide(tf.compat.v1.to_float(tf.slice(tf.shape(self.imgs),[2],[1])),self.win_size)), dtype=tf.int32)
         
         sp_size = tf.cond(tf.logical_or(tf.equal(rot90_num,0), tf.equal(rot90_num,2)), \
                           lambda: tf.concat(values=[y_len,x_len], axis=0), \
@@ -1018,7 +1020,7 @@ class vessel_segm_vgn(base_model):
 
         post_cnn_img_fg_prob = tf.sigmoid(current_input)
         
-        pixel_weights = tf.placeholder(tf.float32, [None, None, None, 1], name='pixel_weights')
+        pixel_weights = tf.compat.v1.placeholder(tf.float32, [None, None, None, 1], name='pixel_weights')
         
         ### Hang up the results ###     
         self.post_cnn_dropout = post_cnn_dropout
@@ -1040,8 +1042,8 @@ class vessel_segm_vgn(base_model):
         ###### cnn related ######
         
         ### Compute the loss ###
-        binary_mask_fg = tf.to_float(tf.equal(self.labels, 1))
-        binary_mask_bg = tf.to_float(tf.not_equal(self.labels, 1))
+        binary_mask_fg = tf.compat.v1.to_float(tf.equal(self.labels, 1))
+        binary_mask_bg = tf.compat.v1.to_float(tf.not_equal(self.labels, 1))
         combined_mask = tf.concat(values=[binary_mask_bg,binary_mask_fg], axis=3)
         flat_one_hot_labels = tf.reshape(tensor=combined_mask, shape=(-1, 2))
         flat_labels = tf.reshape(tensor=self.labels, shape=(-1,))
@@ -1060,7 +1062,7 @@ class vessel_segm_vgn(base_model):
         
         # weighted cross entropy loss (in fov)
         num_pixel = tf.reduce_sum(self.fov_masks)
-        num_pixel_fg = tf.count_nonzero(binary_mask_fg, dtype=tf.int64)
+        num_pixel_fg = tf.compat.v1.count_nonzero(binary_mask_fg, dtype=tf.int64)
         num_pixel_bg = num_pixel - num_pixel_fg
         class_weight = tf.cast(tf.concat(values=[tf.reshape(tf.divide(num_pixel_fg,num_pixel),(1,1)), \
                                                 tf.reshape(tf.divide(num_pixel_bg,num_pixel),(1,1))], axis=1), dtype=tf.float32)
@@ -1073,13 +1075,13 @@ class vessel_segm_vgn(base_model):
         ### Compute the accuracy ###
         flat_bin_output = tf.greater_equal(tf.reshape(tensor=self.img_fg_prob, shape=(-1,)), 0.5)
         # accuracy
-        cnn_correct = tf.to_float(tf.equal(flat_bin_output,tf.cast(flat_labels, tf.bool)))
+        cnn_correct = tf.compat.v1.to_float(tf.equal(flat_bin_output,tf.cast(flat_labels, tf.bool)))
         cnn_accuracy = tf.reduce_mean(cnn_correct)
         # precision, recall
-        num_fg_output = tf.reduce_sum(tf.to_float(flat_bin_output)) 
-        cnn_tp = tf.reduce_sum(tf.to_float(tf.logical_and(tf.cast(flat_labels, dtype=tf.bool), flat_bin_output)))
+        num_fg_output = tf.reduce_sum(tf.compat.v1.to_float(flat_bin_output))
+        cnn_tp = tf.reduce_sum(tf.compat.v1.to_float(tf.logical_and(tf.cast(flat_labels, dtype=tf.bool), flat_bin_output)))
         cnn_pre = tf.divide(cnn_tp,tf.add(num_fg_output,cfg.EPSILON))
-        cnn_rec = tf.divide(cnn_tp,tf.to_float(num_pixel_fg))
+        cnn_rec = tf.divide(cnn_tp,tf.compat.v1.to_float(num_pixel_fg))
 
 
         ###### gnn related ######
@@ -1091,7 +1093,7 @@ class vessel_segm_vgn(base_model):
         #gnn_loss = tf.reduce_mean(gnn_cross_entropies)
         # weighted cross entropy loss
         num_node = tf.size(self.node_labels)
-        num_node_fg = tf.count_nonzero(self.node_labels, dtype=tf.int32)
+        num_node_fg = tf.compat.v1.count_nonzero(self.node_labels, dtype=tf.int32)
         num_node_bg = num_node - num_node_fg
         gnn_class_weight = tf.cast(tf.concat(values=[tf.reshape(tf.divide(num_node_fg,num_node),(1,1)), \
                                                      tf.reshape(tf.divide(num_node_bg,num_node),(1,1))], axis=1), dtype=tf.float32)
@@ -1109,7 +1111,7 @@ class vessel_segm_vgn(base_model):
         
         ### Compute the loss ###
         post_cnn_flat_logits = tf.reshape(tensor=self.post_cnn_img_output, shape=(-1,))
-        post_cnn_cross_entropies = tf.nn.sigmoid_cross_entropy_with_logits(logits=post_cnn_flat_logits, labels=tf.to_float(flat_labels))
+        post_cnn_cross_entropies = tf.nn.sigmoid_cross_entropy_with_logits(logits=post_cnn_flat_logits, labels=tf.compat.v1.to_float(flat_labels))
         
         # weighted cross entropy loss
         reshaped_pixel_weights = tf.reshape(tensor=self.pixel_weights, shape=(-1,))
@@ -1119,13 +1121,13 @@ class vessel_segm_vgn(base_model):
         ### Compute the accuracy ###
         post_cnn_flat_bin_output = tf.greater_equal(tf.reshape(tensor=self.post_cnn_img_fg_prob, shape=(-1,)), 0.5)
         # accuracy
-        post_cnn_correct = tf.to_float(tf.equal(post_cnn_flat_bin_output,tf.cast(flat_labels, tf.bool)))
+        post_cnn_correct = tf.compat.v1.to_float(tf.equal(post_cnn_flat_bin_output,tf.cast(flat_labels, tf.bool)))
         post_cnn_accuracy = tf.reduce_mean(post_cnn_correct)
         # precision, recall
-        post_cnn_num_fg_output = tf.reduce_sum(tf.to_float(post_cnn_flat_bin_output))
-        post_cnn_tp = tf.reduce_sum(tf.to_float(tf.logical_and(tf.cast(flat_labels, dtype=tf.bool), post_cnn_flat_bin_output)))
+        post_cnn_num_fg_output = tf.reduce_sum(tf.compat.v1.to_float(post_cnn_flat_bin_output))
+        post_cnn_tp = tf.reduce_sum(tf.compat.v1.to_float(tf.logical_and(tf.cast(flat_labels, dtype=tf.bool), post_cnn_flat_bin_output)))
         post_cnn_pre = tf.divide(post_cnn_tp,tf.add(post_cnn_num_fg_output,cfg.EPSILON))
-        post_cnn_rec = tf.divide(post_cnn_tp,tf.to_float(num_pixel_fg))
+        post_cnn_rec = tf.divide(post_cnn_tp,tf.compat.v1.to_float(num_pixel_fg))
 
         ###### joint optimization ######
         
@@ -1134,16 +1136,16 @@ class vessel_segm_vgn(base_model):
         else:
             loss = post_cnn_loss
         
-        weights_only = filter( lambda x: x.name.endswith('W:0'), tf.trainable_variables() )
+        weights_only = filter( lambda x: x.name.endswith('W:0'), tf.compat.v1.trainable_variables() )
         weight_decay = tf.reduce_sum(tf.stack([tf.nn.l2_loss(x) for x in weights_only])) * cfg.TRAIN.WEIGHT_DECAY_RATE
         loss += weight_decay
         
         ### Build the solver ###
-        learning_rate = tf.placeholder(tf.float32, shape=[])
+        learning_rate = tf.compat.v1.placeholder(tf.float32, shape=[])
         if self.params.opt=='adam':
-            optimizer = tf.train.AdamOptimizer(learning_rate, epsilon=0.1)
+            optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate, epsilon=0.1)
         elif self.params.opt=='sgd':
-            optimizer = tf.train.MomentumOptimizer(learning_rate, cfg.TRAIN.MOMENTUM, use_nesterov=True)
+            optimizer = tf.compat.v1.train.MomentumOptimizer(learning_rate, cfg.TRAIN.MOMENTUM, use_nesterov=True)
 
         grads_and_vars_1 = optimizer.compute_gradients(loss)
         if self.gnn_loss_on:
@@ -1160,7 +1162,7 @@ class vessel_segm_vgn(base_model):
             if self.params.lr_scheduling=='pc':
                 boundaries = [int(self.params.max_iters*self.params.lr_decay_tp)]
                 values = [self.params.new_net_lr,self.params.new_net_lr*0.1]            
-                lr_handler = tf.train.piecewise_constant(self.global_step, boundaries, values)
+                lr_handler = tf.compat.v1.train.piecewise_constant(self.global_step, boundaries, values)
             else:
                 raise NotImplementedError
                 
@@ -1182,7 +1184,7 @@ class vessel_segm_vgn(base_model):
             if self.params.lr_scheduling=='pc':
                 boundaries = [int(self.params.max_iters*self.params.lr_decay_tp)]
                 values = [self.params.old_net_ft_lr,self.params.old_net_ft_lr*0.1]         
-                lr_handler = tf.train.piecewise_constant(self.global_step, boundaries, values)
+                lr_handler = tf.compat.v1.train.piecewise_constant(self.global_step, boundaries, values)
             else:
                 raise NotImplementedError
 

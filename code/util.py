@@ -197,6 +197,7 @@ def _get_image_fov_blob(minibatch_db, is_training, use_padding=False):
     processed_ims = []
     processed_labels = []
     processed_fovs = []
+    print(minibatch_db[0])
     if 'DRIVE' in minibatch_db[0]:
         im_ext = '_image.tif'
         label_ext = '_label.gif'
@@ -211,10 +212,10 @@ def _get_image_fov_blob(minibatch_db, is_training, use_padding=False):
         pixel_mean = cfg.PIXEL_MEAN_STARE
         len_y = 704
         len_x = 704
-    elif 'CHASE_DB1' in minibatch_db[0]:
+    elif 'Image' in minibatch_db[0]:  # TODO: changed CHASE_DB1 to Image for debugging
         im_ext = '.jpg'
         label_ext = '_1stHO.png'
-        fov_ext = '_mask.tif'
+        fov_ext = '_1stHO.png'  # TODO: changed _mask.tif to _1stH0.png
         pixel_mean = cfg.PIXEL_MEAN_CHASE_DB1
         len_y = 1024
         len_x = 1024
@@ -226,7 +227,7 @@ def _get_image_fov_blob(minibatch_db, is_training, use_padding=False):
         len_y = 768
         len_x = 768
         
-    for i in xrange(num_images):
+    for i in range(num_images):
         im = skimage.io.imread(minibatch_db[i]+im_ext)
         label = skimage.io.imread(minibatch_db[i]+label_ext)
         label = label.reshape((label.shape[0],label.shape[1],1))
@@ -324,7 +325,7 @@ def _get_graph_fov_blob(minibatch_db, is_training, edge_type='srns_geo_dist_bina
         pixel_mean = cfg.PIXEL_MEAN_HRF
         len_y = 768
         len_x = 768
-    for i in xrange(num_graphs):
+    for i in range(num_graphs):
         
         # load images
         cur_path = minibatch_db[i]
@@ -364,7 +365,7 @@ def _get_graph_fov_blob(minibatch_db, is_training, edge_type='srns_geo_dist_bina
         union_graph = nx.convert_node_labels_to_integers(graph)
         n_nodes_in_graph = union_graph.number_of_nodes()
         node_idx_map = np.zeros(im.shape[:2])
-        for j in xrange(n_nodes_in_graph):
+        for j in range(n_nodes_in_graph):
             node_idx_map[union_graph.nodes[j]['y'],union_graph.nodes[j]['x']] = j+1
         
         if num_graphs > 1: # not used
@@ -380,7 +381,7 @@ def _get_graph_fov_blob(minibatch_db, is_training, edge_type='srns_geo_dist_bina
         processed_probmaps.append(processed_probmap)
         
         node_ys, node_xs = np.where(processed_node_idx_map)
-        for j in xrange(len(node_ys)):
+        for j in range(len(node_ys)):
             cur_node_idx = processed_node_idx_map[node_ys[j],node_xs[j]] 
             union_graph.nodes[cur_node_idx-1]['y'] = node_ys[j]
             union_graph.nodes[cur_node_idx-1]['x'] = node_xs[j]
@@ -397,7 +398,7 @@ def _get_graph_fov_blob(minibatch_db, is_training, edge_type='srns_geo_dist_bina
         
         if vec_aug_on[4]:
             del_node_list = []
-            for j in xrange(n_nodes_in_graph):
+            for j in range(n_nodes_in_graph):
                 if (union_graph.nodes[j]['y']>=crop_y1 and \
                     union_graph.nodes[j]['y']<crop_y2 and \
                     union_graph.nodes[j]['x']>=crop_x1 and \
@@ -639,7 +640,7 @@ def im_list_to_blob(ims):
     num_images = len(ims)
     blob = np.zeros((num_images, max_shape[0], max_shape[1], max_shape[2]),
                     dtype=ims[0].dtype)
-    for i in xrange(num_images):
+    for i in range(num_images):
         im = ims[i]
         blob[i, 0:im.shape[0], 0:im.shape[1], :] = im
 

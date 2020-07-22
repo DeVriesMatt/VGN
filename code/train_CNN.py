@@ -9,13 +9,13 @@ from config import cfg
 from model import vessel_segm_cnn
 import util
 
-
+# tf.compat.v1.disable_eager_execution()
 def parse_args():
     """
     Parse input arguments
     """
     parser = argparse.ArgumentParser(description='Train a vessel_segm_cnn network')
-    parser.add_argument('--dataset', default='DRIVE', help='Dataset to use: Can be DRIVE or STARE or CHASE_DB1 or HRF', type=str)
+    parser.add_argument('--dataset', default='CHASE_DB1', help='Dataset to use: Can be DRIVE or STARE or CHASE_DB1 or HRF', type=str)
     parser.add_argument('--cnn_model', default='driu', help='CNN model to use', type=str)
     parser.add_argument('--use_fov_mask', default=True, help='Whether to use fov masks', type=bool)
     parser.add_argument('--opt', default='adam', help='Optimizer to use: Can be sgd or adam', type=str)
@@ -24,33 +24,46 @@ def parse_args():
     parser.add_argument('--max_iters', default=50000, help='Maximum number of iterations', type=int)
     parser.add_argument('--pretrained_model', default='../pretrained_model/VGG_imagenet.npy', help='path for a pretrained model(.npy)', type=str)
     #parser.add_argument('--pretrained_model', default=None, help='path for a pretrained model(.ckpt)', type=str)
-    parser.add_argument('--save_root', default='DRIU_DRIVE', help='root path to save trained models and test results', type=str)
+    parser.add_argument('--save_root', default='DRIU_CHASE_DB1', help='root path to save trained models and test results', type=str)
 
     args = parser.parse_args()
     return args
 
 
 def load(data_path, session, ignore_missing=False):
+    # save np.load
+    np_load_old = np.load
+
+    # modify the default parameters of np.load
+    np.load = lambda *a, **k: np_load_old(*a, allow_pickle=True, **k, encoding='latin1')
+
+    # call load_data with allow_pickle implicitly set to true
     data_dict = np.load(data_path).item()
+
+    # restore np.load for future normal usage
+    np.load = np_load_old
+
+
     for key in data_dict:
-        with tf.variable_scope(key, reuse=True):
+        with tf.compat.v1.variable_scope(key, reuse=True):
             for subkey in data_dict[key]:
                 if subkey=='weights':
                     target_subkey='W'
                 elif subkey=='biases':
                     target_subkey='b'
                 try:
-                    var = tf.get_variable(target_subkey)
+                    var = tf.compat.v1.get_variable(target_subkey)
                     session.run(var.assign(data_dict[key][subkey]))
-                    print "assign pretrain model "+subkey+ " to "+key
+                    print("assign pretrain model "+subkey+ " to "+key)
                 except ValueError:
-                    print "ignore "+key+"/"+subkey
+                    print("ignore "+key+"/"+subkey)
                     #print "ignore "+key
                     if not ignore_missing:
                         raise
 
 
 if __name__ == '__main__':
+    tf.compat.v1.disable_eager_execution()
     args = parse_args()
     
     print('Called with args:')
@@ -94,16 +107,16 @@ if __name__ == '__main__':
     
     network = vessel_segm_cnn(args, None)
 
-    config = tf.ConfigProto()
+    config = tf.compat.v1.ConfigProto()
     config.gpu_options.allow_growth = True    
-    sess = tf.InteractiveSession(config=config)
+    sess = tf.compat.v1.InteractiveSession(config=config)
     
-    saver = tf.train.Saver(max_to_keep=100)
-    summary_writer = tf.summary.FileWriter(model_save_path, sess.graph)
+    saver = tf.compat.v1.train.Saver(max_to_keep=100)
+    summary_writer = tf.compat.v1.summary.FileWriter(model_save_path, sess.graph)
     
-    sess.run(tf.global_variables_initializer())
+    sess.run(tf.compat.v1.global_variables_initializer())
     if args.pretrained_model is not None:
-        print "Loading model..."
+        print("Loading model...")
         load(args.pretrained_model, sess, ignore_missing=True)
     
     f_log = open(os.path.join(model_save_path,'log.txt'), 'w')
@@ -113,7 +126,7 @@ if __name__ == '__main__':
     train_loss_list = []
     test_loss_list = []
     print("Training the model...")
-    for iter in xrange(args.max_iters):
+    for iter in range(args.max_iters):
     
         timer.tic()
         
@@ -138,22 +151,22 @@ if __name__ == '__main__':
         train_loss_list.append(loss_val)
     
         if (iter+1) % (cfg.TRAIN.DISPLAY) == 0:
-            print 'iter: %d / %d, loss: %.4f, accuracy: %.4f, precision: %.4f, recall: %.4f'\
-                    %(iter+1, args.max_iters, loss_val, accuracy_val, pre_val, rec_val)     
-            print 'speed: {:.3f}s / iter'.format(timer.average_time)
+            print('iter: %d / %d, loss: %.4f, accuracy: %.4f, precision: %.4f, recall: %.4f'\
+                    %(iter+1, args.max_iters, loss_val, accuracy_val, pre_val, rec_val)    )
+            print('speed: {:.3f}s / iter'.format(timer.average_time))
     
         if (iter+1) % cfg.TRAIN.SNAPSHOT_ITERS == 0:
             last_snapshot_iter = iter
             filename = os.path.join(model_save_path,('iter_{:d}'.format(iter+1) + '.ckpt'))
             saver.save(sess, filename)
-            print 'Wrote snapshot to: {:s}'.format(filename)
+            print('Wrote snapshot to: {:s}'.format(filename))
     
         if (iter+1) % cfg.TRAIN.TEST_ITERS == 0:
             
             all_labels = np.zeros((0,))
             all_preds = np.zeros((0,))
 
-            for _ in xrange(int(np.ceil(float(len_test)/cfg.TRAIN.BATCH_SIZE))):
+            for _ in range(int(np.ceil(float(len_test)/cfg.TRAIN.BATCH_SIZE))):
                 
                 # get one batch
                 img_list, blobs_test = data_layer_test.forward()
@@ -184,7 +197,7 @@ if __name__ == '__main__':
                 cur_batch_size = len(img_list)
                 reshaped_fg_prob_map = fg_prob_map.reshape((cur_batch_size,fg_prob_map.shape[1],fg_prob_map.shape[2]))
                 reshaped_output = reshaped_fg_prob_map>=0.5
-                for img_idx in xrange(cur_batch_size):
+                for img_idx in range(cur_batch_size):
                     cur_test_img_path = img_list[img_idx]
                     temp_name = cur_test_img_path[util.find(cur_test_img_path,'/')[-1]+1:]
                     
@@ -203,7 +216,7 @@ if __name__ == '__main__':
             all_correct = all_labels_bin==all_preds_bin
             acc_test = np.mean(all_correct.astype(np.float32))
         
-            summary = tf.Summary()
+            summary = tf.compat.v1.Summary()
             summary.value.add(tag="train_loss", simple_value=float(np.mean(train_loss_list)))
             summary.value.add(tag="test_loss", simple_value=float(np.mean(test_loss_list)))
             summary.value.add(tag="test_acc", simple_value=float(acc_test))
@@ -212,9 +225,9 @@ if __name__ == '__main__':
             summary_writer.add_summary(summary, global_step=iter+1)
             summary_writer.flush()
             
-            print 'iter: %d / %d, train_loss: %.4f'%(iter+1, args.max_iters, np.mean(train_loss_list))
-            print 'iter: %d / %d, test_loss: %.4f, test_acc: %.4f, test_auc: %.4f, test_ap: %.4f'\
-                    %(iter+1, args.max_iters, np.mean(test_loss_list), acc_test, auc_test, ap_test)
+            print('iter: %d / %d, train_loss: %.4f'%(iter+1, args.max_iters, np.mean(train_loss_list)[0]))
+            print('iter: %d / %d, test_loss: %.4f, test_acc: %.4f, test_auc: %.4f, test_ap: %.4f'\
+                    %(iter+1, args.max_iters, np.mean(test_loss_list)[0], acc_test[0], auc_test, ap_test))
             
             f_log.write('iter: '+str(iter+1)+' / '+str(args.max_iters)+'\n')
             f_log.write('train_loss '+str(np.mean(train_loss_list))+'\n')
@@ -231,7 +244,7 @@ if __name__ == '__main__':
     if last_snapshot_iter != iter:
         filename = os.path.join(model_save_path,('iter_{:d}'.format(iter+1) + '.ckpt'))
         saver.save(sess, filename)
-        print 'Wrote snapshot to: {:s}'.format(filename)
+        print('Wrote snapshot to: {:s}'.format(filename))
     
     f_log.close()
     sess.close()
